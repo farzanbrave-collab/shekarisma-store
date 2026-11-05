@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowDownLeft, ArrowLeft, ArrowRight, ArrowUpLeft, Check, ChevronDown,
   CircleHelp, Instagram, Lamp, Lightbulb, Menu, Minus, Moon, Plus,
-  Search, Settings2, ShoppingBag, Sparkles, Sun, Trash2, X, LayoutDashboard,
+  Search, Settings2, ShoppingBag, Sparkles, Sun, Trash2, X, LayoutDashboard, UserRound,
   Package, ShoppingCart, Tags, Image as ImageIcon, SlidersHorizontal, Globe2,
   Save, Eye, Pencil, PlusCircle, LogOut, Home, Boxes, Mail, Phone, MapPin
 } from 'lucide-react';
@@ -49,7 +49,7 @@ function Header({ lang, setLang, theme, setTheme, cartCount, onCart, onAdmin, on
         <button className="language-btn" onClick={() => setLang(lang === 'fa' ? 'en' : 'fa')}><Globe2 size={16}/>{t.language}</button>
         <button className="icon-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label="toggle theme">{theme === 'dark' ? <Sun/> : <Moon/>}</button>
         <button className="bag-btn" onClick={onCart}><ShoppingBag size={18}/><span>{cartCount}</span></button>
-        <button className="admin-shortcut" onClick={onAccount}><span>{user ? user.name : 'ورود / ثبت‌نام'}</span></button><button className="admin-shortcut" onClick={onAdmin}><LayoutDashboard size={15}/><span>{t.admin}</span></button>
+        <button className="account-shortcut" onClick={onAccount}><UserRound size={16}/><span>{user ? user.name : 'ورود / ثبت‌نام'}</span></button><button className="admin-shortcut" onClick={onAdmin}><LayoutDashboard size={15}/><span>{t.admin}</span></button>
       </div>
     </div>
   </header>;
