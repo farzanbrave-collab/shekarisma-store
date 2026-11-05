@@ -49,7 +49,7 @@ function Header({ lang, setLang, theme, setTheme, cartCount, onCart, onAdmin, on
         <button className="language-btn" onClick={() => setLang(lang === 'fa' ? 'en' : 'fa')}><Globe2 size={16}/>{t.language}</button>
         <button className="icon-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label="toggle theme">{theme === 'dark' ? <Sun/> : <Moon/>}</button>
         <button className="bag-btn" onClick={onCart}><ShoppingBag size={18}/><span>{cartCount}</span></button>
-        <button className="account-shortcut" onClick={onAccount}><UserRound size={16}/><span>{user ? user.name : 'ورود / ثبت‌نام'}</span></button><button className="admin-shortcut" onClick={onAdmin}><LayoutDashboard size={15}/><span>{t.admin}</span></button>
+        <button className="account-shortcut" onClick={onAccount}><UserRound size={16}/><span>{user ? user.name : 'ورود / ثبت‌نام'}</span></button>{user?.role === 'ADMIN' && <button className="admin-shortcut" onClick={onAdmin}><LayoutDashboard size={15}/><span>{t.admin}</span></button>}
       </div>
     </div>
   </header>;
@@ -64,7 +64,7 @@ function ProductCard({ product, onAdd, onEdit, admin, lang }) {
       <button className="quick-add" onClick={() => onAdd(product)} aria-label="add to cart"><Plus/></button>
     </div>
     <div className="product-info">
-      <div className="product-meta"><span>{product.category}</span><span className="product-dot"></span><span>Shekarisma edit</span></div>
+      <div className="product-meta"><span>{product.category}</span></div>
       <h3>{lang === 'fa' ? product.name : product.en || product.name}</h3>
       <div className="price-row"><strong>{money(product.price, lang === 'en')}</strong>{product.oldPrice > product.price && <del>{money(product.oldPrice, lang === 'en')}</del>}</div>
     </div>
@@ -207,7 +207,7 @@ export default function App() {
           <div className="hero-footnote"><span>01 — 06</span><span className="foot-line"></span><span>CURATED LIGHTING OBJECTS</span></div>
         </div><HeroLamp/>
       </div><div className="hero-bottom container"><span>SCULPTURAL LIGHTING</span><span>DESIGNED TO FEEL</span><span>EST. 2025</span></div></section>
-      <section className="trust-strip"><div className="container trust-inner"><span><Sparkles size={16}/> طراحی مینیمال</span><span><Check size={16}/> انتخاب گزیده</span><span><Lightbulb size={16}/> نورپردازی هدفمند</span><span><Package size={16}/> ارسال امن</span></div></section>
+      
       <section className="collection-section section-pad" id="shop"><div className="container">
         <div className="section-heading"><div><span className="eyebrow">THE COLLECTION / 2026</span><h2>{t.collection}<br/><em>{t.collectionAccent}</em></h2></div><p>{t.collectionText}</p></div>
         <div className="shop-toolbar"><div className="category-tabs">{categories.map(c=><button key={c} className={category===c?'selected':''} onClick={()=>setCategory(c)}>{c==='همه'?t.all:c}</button>)}</div><label className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t.search}/></label></div>
@@ -215,9 +215,9 @@ export default function App() {
         {!filtered.length && <div className="no-results">محصولی با این مشخصات پیدا نشد.</div>}
       </div></section>
       <section className="manifesto-section" id="about"><div className="container manifesto-grid"><div className="manifesto-visual"><div className="manifesto-ring"></div><img src="https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?w=1000&q=85" alt="طراحی نورپردازی مینیمال" loading="lazy"/><span>LIGHT / FORM / FEEL</span></div><div className="manifesto-copy"><span className="eyebrow">OUR PHILOSOPHY</span><h2>{t.about}<br/><em>{t.aboutAccent}</em></h2><p>{t.aboutText}</p><div className="manifesto-points"><span><b>01</b>{t.feature1}</span><span><b>02</b>{t.feature2}</span><span><b>03</b>{t.feature3}</span></div><a href="#contact" className="story-link">{isFa?'بیشتر درباره ما':'Discover more'} <ArrowLeft size={17}/></a></div></div></section>
-      <section className="newsletter-section"><div className="container newsletter-inner"><div><span className="eyebrow">A LITTLE MORE LIGHT</span><h2>{t.newsletter}</h2><p>{t.newsletterText}</p></div><form onSubmit={e=>{e.preventDefault();alert(isFa?'عضویت نمایشی انجام شد.':'Demo subscription complete.')}}><input type="email" required placeholder={t.email}/><button className="btn btn-primary">{t.join}<ArrowLeft size={16}/></button></form></div></section>
+
     </main>
-    <footer id="contact"><div className="container footer-grid"><div><Brand light/><p>{t.footer}</p></div><div><b>{isFa?'دسترسی سریع':'Quick links'}</b><a href="#shop">{t.nav[1]}</a><a href="#about">{t.nav[2]}</a><a href="#contact">{t.nav[3]}</a></div><div><b>{isFa?'ارتباط با ما':'Contact'}</b><span><Mail size={15}/> hello@shekarisma.com</span><span><Phone size={15}/> ۰۲۱-۰۰۰۰۰۰۰۰</span><span><MapPin size={15}/> تهران، ایران</span></div><div className="socials"><b>{isFa?'ما را دنبال کنید':'Follow us'}</b><a href="#contact" aria-label="instagram"><Instagram/></a></div></div><div className="container copyright"><span>© 2026 SHEKARISMA. ALL RIGHTS RESERVED.</span><span>{isFa?'ساخته‌شده با توجه به جزئیات':'Made with attention to detail'}</span></div></footer>
+    <footer id="contact"><div className="container footer-grid footer-minimal"><div><Brand light/><p>{t.footer}</p></div><div><b>{isFa?'دسترسی سریع':'Quick links'}</b><a href="#shop">{t.nav[1]}</a><a href="#about">{t.nav[2]}</a></div><div className="socials"><b>{isFa?'ما را دنبال کنید':'Follow us'}</b><a href="#contact" aria-label="instagram"><Instagram/></a></div></div><div className="container copyright"><span>© 2026 SHEKARISMA. ALL RIGHTS RESERVED.</span><span>{isFa?'ساخته‌شده با توجه به جزئیات':'Made with attention to detail'}</span></div></footer>
     <CartDrawer open={cartOpen} onClose={()=>setCartOpen(false)} cart={cart} setCart={setCart} lang={lang} t={t} onCheckout={checkout} busy={checkoutBusy}/>
     {adminOpen && <AdminPanel products={products} setProducts={setProducts} settings={settings} setSettings={setSettings} orders={orders} onRefreshOrders={refreshOrders} onUpdateOrder={updateOrder} onSaveProduct={saveProduct} onDeleteProduct={deleteProduct} onClose={()=>setAdminOpen(false)} lang={lang}/>}
     {accountOpen && <div className="auth-overlay" onMouseDown={()=>setAccountOpen(false)}><section className="auth-card" role="dialog" aria-modal="true" aria-labelledby="auth-title" onMouseDown={e=>e.stopPropagation()}>
