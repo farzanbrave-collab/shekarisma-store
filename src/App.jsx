@@ -71,66 +71,71 @@ function ProductCard({ product, onAdd, onEdit, admin, lang }) {
   </article>;
 }
 
-function CartDrawer({ open, onClose, cart, setCart, lang, t }) {
-  const total = cart.reduce((s, x) => s + x.price * x.qty, 0);
+function CartDrawer({ open, onClose, cart, setCart, lang, t, onCheckout, busy }) {
+  const [details,setDetails] = useState({customerName:'',phone:'',address:'',postalCode:'',note:''});
+  const total = cart.reduce((sum,item)=>sum + Number(item.price)*item.qty,0);
   if (!open) return null;
+  const submit = e => { e.preventDefault(); onCheckout(details); };
   return <div className="overlay" onMouseDown={onClose}>
-    <aside className="drawer" onMouseDown={e => e.stopPropagation()}>
-      <div className="drawer-head"><h2>{t.cart}</h2><button className="icon-btn" onClick={onClose}><X/></button></div>
+    <aside className="drawer checkout-drawer" onMouseDown={e=>e.stopPropagation()}>
+      <div className="drawer-head"><div><span className="eyebrow">YOUR SELECTION</span><h2>{t.cart}</h2></div><button className="icon-btn" onClick={onClose} aria-label="بستن"><X/></button></div>
       {!cart.length ? <div className="empty-cart"><ShoppingBag size={42}/><p>{t.empty}</p><button className="btn btn-primary" onClick={onClose}>{t.explore}</button></div> :
-        <><div className="cart-lines">{cart.map(item => <div className="cart-line" key={item.id}>
-          <img src={item.image} alt=""/><div className="cart-line-info"><b>{lang === 'fa' ? item.name : item.en || item.name}</b><span>{money(item.price, lang === 'en')}</span>
-          <div className="qty-control"><button onClick={() => setCart(c => c.map(x => x.id === item.id ? {...x, qty: Math.max(1,x.qty-1)} : x))}><Minus size={13}/></button><span>{item.qty}</span><button onClick={() => setCart(c => c.map(x => x.id === item.id ? {...x, qty:x.qty+1} : x))}><Plus size={13}/></button><button className="remove-item" onClick={() => setCart(c => c.filter(x => x.id !== item.id))}><Trash2 size={14}/></button></div>
-          </div></div>)}</div>
-        <div className="cart-bottom"><div><span>{t.total}</span><strong>{money(total, lang === 'en')}</strong></div><button className="btn btn-primary" onClick={() => alert(lang === 'fa' ? 'این نسخه نمایشی است؛ درگاه پرداخت هنوز متصل نشده.' : 'Demo mode: payment gateway is not connected yet.')}>{t.checkout}<ArrowLeft size={17}/></button><small>نسخه نمایشی · پرداخت آنلاین در مرحله راه‌اندازی</small></div></>}
+      <>
+        <div className="cart-lines">{cart.map(item=><div className="cart-line" key={item.id}>
+          <img src={item.image} alt={item.name}/><div className="cart-line-info"><b>{lang==='fa'?item.name:item.en||item.name}</b><span>{money(item.price,lang==='en')}</span>
+          <div className="qty-control"><button type="button" aria-label="کم کردن" onClick={()=>setCart(c=>c.map(x=>x.id===item.id?{...x,qty:Math.max(1,x.qty-1)}:x))}><Minus size={13}/></button><span>{item.qty}</span><button type="button" aria-label="زیاد کردن" onClick={()=>setCart(c=>c.map(x=>x.id===item.id?{...x,qty:Math.min(50,x.qty+1)}:x))}><Plus size={13}/></button><button type="button" className="remove-item" onClick={()=>setCart(c=>c.filter(x=>x.id!==item.id))}><Trash2 size={14}/></button></div></div>
+        </div>)}</div>
+        <form className="checkout-form" onSubmit={submit}>
+          <h3>اطلاعات تحویل سفارش</h3>
+          <label>نام و نام خانوادگی<input required minLength="2" autoComplete="name" value={details.customerName} onChange={e=>setDetails(d=>({...d,customerName:e.target.value}))}/></label>
+          <label>شماره تماس<input required type="tel" autoComplete="tel" value={details.phone} onChange={e=>setDetails(d=>({...d,phone:e.target.value}))}/></label>
+          <label>آدرس کامل<textarea required minLength="8" rows="3" autoComplete="street-address" value={details.address} onChange={e=>setDetails(d=>({...d,address:e.target.value}))}/></label>
+          <label>کد پستی (اختیاری)<input inputMode="numeric" value={details.postalCode} onChange={e=>setDetails(d=>({...d,postalCode:e.target.value}))}/></label>
+          <label>توضیحات (اختیاری)<textarea rows="2" value={details.note} onChange={e=>setDetails(d=>({...d,note:e.target.value}))}/></label>
+          <div className="cart-bottom"><div><span>{t.total}</span><strong>{money(total,lang==='en')}</strong></div><button className="btn btn-primary" type="submit" disabled={busy}>{busy?'در حال ثبت سفارش…':'ثبت سفارش' }<ArrowLeft size={17}/></button><small>ثبت سفارش نهایی می‌شود؛ پرداخت آنلاین هنوز فعال نیست.</small></div>
+        </form>
+      </>}
     </aside>
   </div>;
 }
 
-function AdminPanel({ products, setProducts, settings, setSettings, orders, onClose, lang }) {
-  const [tab, setTab] = useState('products');
-  const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({});
-  const [notice, setNotice] = useState('');
-  const isFa = lang === 'fa';
-  const startEdit = (p=null) => { setEditing(p ? p.id : 'new'); setForm(p ? {...p} : {name:'',en:'',category:'آویز',price:0,oldPrice:0,badge:'',image:'',description:''}); };
-  const save = (e) => {
+function AdminPanel({ products, setProducts, settings, setSettings, orders, token, onRefreshOrders, onSaveProduct, onDeleteProduct, onUpdateOrder, onClose, lang }) {
+  const [tab,setTab]=useState('products');
+  const [editing,setEditing]=useState(null);
+  const [form,setForm]=useState({});
+  const [notice,setNotice]=useState('');
+  const [busy,setBusy]=useState(false);
+  const startEdit=(p=null)=>{setEditing(p?p.id:'new');setForm(p?{...p,en:p.nameEn||p.en||'',oldPrice:p.oldPrice||'',stock:p.stock??0}:{name:'',en:'',category:'آویز',price:'',oldPrice:'',badge:'',image:'',description:'',stock:0});};
+  const update=(key,value)=>setForm(f=>({...f,[key]:value}));
+  const save=async e=>{
     e.preventDefault();
-    if (!form.name || !form.price) return;
-    if (editing === 'new') setProducts(p => [{...form,id:Date.now()},...p]);
-    else setProducts(p => p.map(x => x.id === editing ? {...form, price:Number(form.price), oldPrice:Number(form.oldPrice)} : x));
-    setEditing(null); setNotice('تغییرات در این مرورگر ذخیره شد.'); setTimeout(() => setNotice(''), 2600);
+    const price=Number(form.price), oldPrice=form.oldPrice===''?null:Number(form.oldPrice);
+    if(!form.name?.trim()||!Number.isFinite(price)||price<0){setNotice('نام و قیمت معتبر وارد کنید.');return;}
+    const english=(form.en||'').trim();
+    const slug=(english||form.name).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||('product-'+Date.now());
+    setBusy(true);
+    try{await onSaveProduct({...form,name:form.name.trim(),nameEn:english||null,slug,price,oldPrice,stock:Math.max(0,Number(form.stock)||0)},editing);setEditing(null);setNotice('محصول با موفقیت در دیتابیس ذخیره شد.');}
+    catch(error){setNotice(error.message||'ذخیره محصول انجام نشد.');}
+    finally{setBusy(false);}
   };
-  const update = (key, value) => setForm(f => ({...f,[key]:value}));
-  return <div className="admin-overlay">
-    <div className="admin-shell">
-      <aside className="admin-sidebar">
-        <div className="admin-brand"><Brand/><span className="admin-label">CONTROL CENTER</span></div>
-        <div className="admin-nav">
-          {[['products',Package,'محصولات'],['orders',ShoppingCart,'سفارش‌ها'],['categories',Tags,'دسته‌بندی‌ها'],['appearance',SlidersHorizontal,'تنظیمات ظاهری']].map(([id,Icon,label]) =>
-            <button key={id} className={tab===id?'active':''} onClick={() => {setTab(id);setEditing(null)}}><Icon size={18}/>{label}</button>)}
-        </div>
-        <button className="admin-back" onClick={onClose}><ArrowRight size={17}/> بازگشت به فروشگاه</button>
-      </aside>
-      <main className="admin-main">
-        <div className="admin-topbar"><div><span className="admin-label">SHEKARISMA / ADMIN</span><h1>{({products:'مدیریت محصولات',orders:'مدیریت سفارش‌ها',categories:'دسته‌بندی‌ها',appearance:'تنظیمات فروشگاه'})[tab]}</h1></div><button className="icon-btn" onClick={onClose}><X/></button></div>
-        {notice && <div className="notice"><Check size={16}/>{notice}</div>}
-        {tab === 'products' && <>
-          {editing === null ? <><div className="admin-toolbar"><p>محصولات فروشگاه <b>{products.length}</b></p><button className="btn btn-primary" onClick={() => startEdit()}><Plus size={17}/> افزودن محصول</button></div>
-            <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>محصول</th><th>دسته</th><th>قیمت</th><th>عملیات</th></tr></thead><tbody>{products.map(p=><tr key={p.id}><td><div className="table-product"><img src={p.image} alt=""/><b>{p.name}</b></div></td><td>{p.category}</td><td>{money(p.price)}</td><td><div className="table-actions"><button onClick={()=>startEdit(p)} aria-label="edit"><Pencil size={16}/></button><button className="danger" onClick={()=>{if(confirm('این محصول حذف شود؟'))setProducts(list=>list.filter(x=>x.id!==p.id))}} aria-label="delete"><Trash2 size={16}/></button></div></td></tr>)}</tbody></table></div></> :
-            <form className="product-form" onSubmit={save}><div className="form-head"><h2>{editing==='new'?'افزودن محصول':'ویرایش محصول'}</h2><button type="button" className="text-btn" onClick={()=>setEditing(null)}>انصراف</button></div>
-              <div className="form-grid">
-                {[['name','نام فارسی'],['en','نام انگلیسی'],['category','دسته‌بندی'],['badge','برچسب'],['price','قیمت (تومان)'],['oldPrice','قیمت قبلی (تومان)'],['image','آدرس تصویر']].map(([k,label])=><label key={k}>{label}<input required={k==='name'||k==='price'} type={k==='price'||k==='oldPrice'?'number':'text'} value={form[k]??''} onChange={e=>update(k,e.target.value)} placeholder={label}/></label>)}
-                <label className="full-field">توضیحات<textarea value={form.description||''} onChange={e=>update('description',e.target.value)} rows="3"/></label>
-              </div><button className="btn btn-primary" type="submit"><Save size={17}/> ذخیره محصول</button>
-            </form>}
-        </>}
-        {tab === 'orders' && <div className="empty-admin"><ShoppingCart size={38}/><h2>هنوز سفارشی ثبت نشده</h2><p>سفارش‌های واقعی پس از اتصال بک‌اند و درگاه پرداخت در این بخش نمایش داده می‌شوند.</p></div>}
-        {tab === 'categories' && <div className="category-admin"><p>دسته‌بندی‌های نمونه</p><div className="category-chips">{['آویز','رومیزی','دیواری','ایستاده','سقفی'].map(c=><span key={c}>{c}</span>)}</div><small>مدیریت دسته‌بندی پویا در مرحله اتصال دیتابیس تکمیل می‌شود.</small></div>}
-        {tab === 'appearance' && <div className="settings-form"><h2>تنظیمات برند</h2><label>نام فروشگاه<input value={settings.brand} onChange={e=>setSettings(s=>({...s,brand:e.target.value}))}/></label><label>شعار فروشگاه<input value={settings.tagline} onChange={e=>setSettings(s=>({...s,tagline:e.target.value}))}/></label><label>رنگ اصلی برند<input type="color" value={settings.accent} onChange={e=>setSettings(s=>({...s,accent:e.target.value}))}/></label><p className="settings-note">این تنظیمات در نسخه نمایشی ذخیره می‌شوند. برای انتشار آنلاین، تنظیمات باید به API و دیتابیس متصل شوند.</p></div>}
-      </main>
-    </div>
-  </div>;
+  return <div className="admin-overlay"><div className="admin-shell">
+    <aside className="admin-sidebar"><div className="admin-brand"><Brand/><span className="admin-label">CONTROL CENTER</span></div>
+      <div className="admin-nav">{[['products',Package,'محصولات'],['orders',ShoppingCart,'سفارش‌ها'],['categories',Tags,'دسته‌بندی‌ها'],['appearance',SlidersHorizontal,'تنظیمات ظاهری']].map(([id,Icon,label])=><button key={id} className={tab===id?'active':''} onClick={()=>{setTab(id);setEditing(null);setNotice('');if(id==='orders')onRefreshOrders();}}><Icon size={18}/>{label}</button>)}</div>
+      <button className="admin-back" onClick={onClose}><ArrowRight size={17}/> بازگشت به فروشگاه</button>
+    </aside>
+    <main className="admin-main">
+      <div className="admin-topbar"><div><span className="admin-label">SHEKARISMA / ADMIN</span><h1>{({products:'مدیریت محصولات',orders:'مدیریت سفارش‌ها',categories:'دسته‌بندی‌ها',appearance:'تنظیمات فروشگاه'})[tab]}</h1></div><button className="icon-btn" onClick={onClose}><X/></button></div>
+      {notice&&<div className="notice" role="status">{notice}</div>}
+      {tab==='products'&&<>{editing===null?<><div className="admin-toolbar"><p>محصولات فروشگاه <b>{products.length}</b></p><button className="btn btn-primary" onClick={()=>startEdit()}><Plus size={17}/> افزودن محصول</button></div>
+        <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>محصول</th><th>دسته</th><th>قیمت</th><th>موجودی</th><th>عملیات</th></tr></thead><tbody>{products.map(p=><tr key={p.id}><td><div className="table-product"><img src={p.image} alt=""/><b>{p.name}</b></div></td><td>{p.category}</td><td>{money(p.price)}</td><td>{p.stock??'—'}</td><td><div className="table-actions"><button onClick={()=>startEdit(p)} aria-label="ویرایش"><Pencil size={16}/></button><button className="danger" onClick={async()=>{if(confirm('این محصول از فروشگاه غیرفعال شود؟')){try{await onDeleteProduct(p.id);setNotice('محصول غیرفعال شد.')}catch(e){setNotice(e.message)}}}} aria-label="حذف"><Trash2 size={16}/></button></div></td></tr>)}</tbody></table></div></>:<form className="product-form" onSubmit={save}><div className="form-head"><h2>{editing==='new'?'افزودن محصول':'ویرایش محصول'}</h2><button type="button" className="text-btn" onClick={()=>setEditing(null)}>انصراف</button></div><div className="form-grid">
+        {[['name','نام فارسی'],['en','نام انگلیسی'],['category','دسته‌بندی'],['badge','برچسب'],['price','قیمت (تومان)'],['oldPrice','قیمت قبلی (تومان)'],['stock','موجودی'],['image','آدرس تصویر']].map(([key,label])=><label key={key}>{label}<input required={key==='name'||key==='price'} type={['price','oldPrice','stock'].includes(key)?'number':'text'} min={['price','oldPrice','stock'].includes(key)?0:undefined} value={form[key]??''} onChange={e=>update(key,e.target.value)} placeholder={label}/></label>)}
+        <label className="full-field">توضیحات<textarea rows="3" value={form.description||''} onChange={e=>update('description',e.target.value)}/></label>
+      </div><button className="btn btn-primary" type="submit" disabled={busy}>{busy?'در حال ذخیره…':'ذخیره محصول'}<Save size={17}/></button></form>}</>}
+      {tab==='orders'&&<><div className="admin-toolbar"><p>سفارش‌های ثبت‌شده <b>{orders.length}</b></p><button className="btn btn-primary" onClick={onRefreshOrders}>به‌روزرسانی</button></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>شماره</th><th>مشتری</th><th>تلفن</th><th>مبلغ</th><th>وضعیت</th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td>{o.id.slice(-7)}</td><td>{o.customerName}</td><td>{o.phone}</td><td>{money(o.total)}</td><td><select value={o.status} onChange={e=>onUpdateOrder(o.id,e.target.value)}><option value="PENDING">در انتظار</option><option value="CONFIRMED">تأیید</option><option value="PROCESSING">در حال آماده‌سازی</option><option value="SHIPPED">ارسال‌شده</option><option value="DELIVERED">تحویل‌شده</option><option value="CANCELLED">لغوشده</option></select></td></tr>)}</tbody></table>{!orders.length&&<p className="empty-admin">هنوز سفارشی ثبت نشده است.</p>}</div></>}
+      {tab==='categories'&&<div className="category-admin"><p>دسته‌بندی‌های فعلی محصولات</p><div className="category-chips">{[...new Set(products.map(p=>p.category))].map(c=><span key={c}>{c}</span>)}</div><small>دسته‌بندی‌ها از اطلاعات محصولات دیتابیس استخراج می‌شوند.</small></div>}
+      {tab==='appearance'&&<div className="settings-form"><h2>تنظیمات ظاهری این مرورگر</h2><label>نام فروشگاه<input value={settings.brand} onChange={e=>setSettings(v=>({...v,brand:e.target.value}))}/></label><label>شعار فروشگاه<input value={settings.tagline} onChange={e=>setSettings(v=>({...v,tagline:e.target.value}))}/></label><label>رنگ اصلی برند<input type="color" value={settings.accent} onChange={e=>setSettings(v=>({...v,accent:e.target.value}))}/></label><p className="settings-note">این تنظیمات فعلاً فقط در همین مرورگر ذخیره می‌شوند و روی همه بازدیدکنندگان اعمال نمی‌شوند.</p></div>}
+    </main>
+  </div></div>;
 }
 
 export default function App() {
