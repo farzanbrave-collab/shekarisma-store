@@ -36,20 +36,20 @@ function HeroLamp() {
   </div>;
 }
 
-function Header({ lang, setLang, theme, setTheme, cartCount, onCart, onAdmin, onAccount, onRegister, user, t }) {
+function Header({ lang, setLang, theme, setTheme, cartCount, onCart, onAdmin, onAccount, onRegister, onLogout, user, t }) {
   const [open, setOpen] = useState(false);
   return <header className="site-header">
     <div className="container header-inner">
       <button className="icon-btn mobile-menu" onClick={() => setOpen(!open)} aria-label="menu"><Menu/></button>
       <Brand/>
       <nav className={open ? 'nav-links nav-open' : 'nav-links'}>
-        {t.nav.map((item, i) => <a key={item} href={['#home','#shop','#about','#contact'][i]} onClick={() => setOpen(false)}>{item}</a>)}<button className="mobile-register-link" type="button" onClick={() => { setOpen(false); onRegister(); }}>ثبت‌نام / ورود به حساب</button>
+        {t.nav.map((item, i) => <a key={item} href={['#home','#shop','#about','#contact'][i]} onClick={() => setOpen(false)}>{item}</a>)}{user ? <button className="mobile-register-link" type="button" onClick={() => { setOpen(false); onLogout(); }}>خروج از حساب</button> : <button className="mobile-register-link" type="button" onClick={() => { setOpen(false); onRegister(); }}>ثبت‌نام / ورود به حساب</button>}
       </nav>
       <div className="header-actions">
         <button className="language-btn" onClick={() => setLang(lang === 'fa' ? 'en' : 'fa')}><Globe2 size={16}/>{t.language}</button>
         <button className="icon-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label="toggle theme">{theme === 'dark' ? <Sun/> : <Moon/>}</button>
         <button className="bag-btn" onClick={onCart}><ShoppingBag size={18}/><span>{cartCount}</span></button>
-        <button className="account-shortcut" onClick={onAccount}><UserRound size={16}/><span>{user ? user.name : 'ورود / ثبت‌نام'}</span></button>{user?.role === 'ADMIN' && <button className="admin-shortcut" onClick={onAdmin}><LayoutDashboard size={15}/><span>{t.admin}</span></button>}
+        {user ? <button className="account-shortcut" onClick={onLogout}><LogOut size={16}/><span>خروج از حساب</span></button> : <button className="account-shortcut" onClick={onAccount}><UserRound size={16}/><span>ورود / ثبت‌نام</span></button>}{user?.role === 'ADMIN' && <button className="admin-shortcut" onClick={onAdmin}><LayoutDashboard size={15}/><span>{t.admin}</span></button>}
       </div>
     </div>
   </header>;
@@ -191,6 +191,7 @@ export default function App() {
   useEffect(()=>{if(token && user?.role!=='ADMIN')fetch(`${API_BASE}/orders/mine`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>r.ok?r.json():Promise.reject()).then(d=>setMyOrders(d.orders||[])).catch(e=>console.error('Order history:',e));else setMyOrders([])},[token,user?.role]);
   useEffect(()=>{localStorage.setItem('sk-cart',JSON.stringify(cart))},[cart]);
   useEffect(()=>{localStorage.setItem('sk-settings',JSON.stringify(settings));document.documentElement.style.setProperty('--accent',settings.accent)},[settings]);
+  const logout = async () => { try { await fetch(`${API_BASE}/auth/logout`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {} }); } catch (error) { console.warn('Logout request:', error); } finally { setToken(''); setUser(null); setMyOrders([]); setAdminOpen(false); setAccountOpen(false); setToast('از حساب کاربری خارج شدی.'); } };
   const submitAccount = async e => { e.preventDefault(); setAccountBusy(true); setAccountError(''); try { const response = await fetch(`${API_BASE}/auth/${accountMode}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(accountMode==='register'?accountForm:{email:accountForm.email,password:accountForm.password})}); const data=await response.json().catch(()=>({})); if(!response.ok) throw new Error(data.error||`خطای سرور (${response.status})`); if(!data.token||!data.user) throw new Error('پاسخ سرور ناقص است؛ لطفاً دوباره تلاش کن.'); setToken(data.token); setUser(data.user); setAccountOpen(false); setAccountError(''); setToast(accountMode==='register'?'حساب کاربری ساخته شد.':'ورود موفق بود'); } catch(error){setAccountError(error.message==='Failed to fetch'?'ارتباط با سرور برقرار نشد. چند لحظه بعد دوباره امتحان کن.':error.message||'ثبت‌نام انجام نشد.');} finally {setAccountBusy(false);} };
   const checkout = async details => { if(!cart.length)return; if(!token){setAccountOpen(true);setToast('برای ثبت سفارش ابتدا وارد حساب شوید');return;} setCheckoutBusy(true); try { const response=await fetch(`${API_BASE}/orders`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({...details,items:cart.map(i=>({productId:i.id,quantity:i.qty}))})}); const data=await response.json(); if(!response.ok)throw new Error(data.error||'ثبت سفارش ناموفق بود'); setCart([]);setCartOpen(false);setToast(`سفارش ${data.order.id.slice(-7)} ثبت شد`); }catch(error){setToast(error.message)}finally{setCheckoutBusy(false)} };
   const saveProduct = async (payload,editing) => { const clean={name:payload.name,nameEn:payload.nameEn,slug:payload.slug,category:payload.category,description:payload.description||'',image:payload.image||'',price:payload.price,oldPrice:payload.oldPrice,stock:payload.stock,badge:payload.badge||null}; const response=await fetch(editing==='new'?`${API_BASE}/admin/products`:`${API_BASE}/admin/products/${editing}`,{method:editing==='new'?'POST':'PATCH',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify(clean)}); const data=await response.json(); if(!response.ok)throw new Error(data.error||'ذخیره ناموفق بود'); setProducts(list=>editing==='new'?[data.product,...list]:list.map(p=>p.id===editing?data.product:p)); };
@@ -199,7 +200,7 @@ export default function App() {
   const updateOrder = async (id,status) => { const response=await fetch(`${API_BASE}/admin/orders/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({status})});const data=await response.json();if(!response.ok)throw new Error(data.error||'تغییر وضعیت ناموفق بود');setOrders(list=>list.map(o=>o.id===id?data.order:o)); };
   const add = p => {setCart(c=>{const found=c.find(x=>x.id===p.id);return found?c.map(x=>x.id===p.id?{...x,qty:x.qty+1}:x):[...c,{...p,qty:1}]});setToast(isFa?'به سبد خرید اضافه شد':'Added to your bag');setTimeout(()=>setToast(''),2200)};
   return <div className="app" dir={isFa?'rtl':'ltr'}>
-    <Header lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} cartCount={cart.reduce((n,x)=>n+x.qty,0)} onCart={()=>setCartOpen(true)} onAdmin={()=>{if(user?.role!=='ADMIN'){setAccountOpen(true);return}setAdminOpen(true)}} onAccount={()=>setAccountOpen(true)} onRegister={()=>{setAccountMode('register');setAccountOpen(true)}} user={user} t={t}/>
+    <Header lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} cartCount={cart.reduce((n,x)=>n+x.qty,0)} onCart={()=>setCartOpen(true)} onAdmin={()=>{if(user?.role!=='ADMIN'){setAccountOpen(true);return}setAdminOpen(true)}} onAccount={()=>setAccountOpen(true)} onRegister={()=>{setAccountMode('register');setAccountOpen(true)}} onLogout={logout} user={user} t={t}/>
     <main>
       <section className="hero-section" id="home"><div className="container hero-grid">
         <div className="hero-copy"><div className="eyebrow"><span></span>{t.eyebrow}</div><h1>{t.heroTitle}<br/><em>{t.heroAccent}</em></h1><p>{t.heroText}</p>
@@ -235,7 +236,6 @@ export default function App() {
       </form>
       <p className="auth-switch">{accountMode==='login'?'هنوز حساب نداری؟':'قبلاً ثبت‌نام کردی؟'} <button type="button" onClick={()=>setAccountMode(m=>m==='login'?'register':'login')}>{accountMode==='login'?'ثبت‌نام کن':'وارد شو'}</button></p>
       {user&&user.role!=='ADMIN'&&<section className="account-orders"><h3>سفارش‌های من</h3>{myOrders.length?myOrders.map(order=><div className="account-order" key={order.id}><span>#{order.id.slice(-7)}</span><b>{money(order.total)}</b><small>{({PENDING:'در انتظار بررسی',CONFIRMED:'تأیید شده',PROCESSING:'در حال آماده‌سازی',SHIPPED:'ارسال شده',DELIVERED:'تحویل شده',CANCELLED:'لغو شده'})[order.status]||order.status}</small></div>):<p>هنوز سفارشی ثبت نکرده‌اید.</p>}</section>}
-      {user&&<button className="auth-logout" type="button" onClick={()=>{fetch(`${API_BASE}/auth/logout`,{method:'POST',headers:{Authorization:`Bearer ${token}`}});setToken('');setUser(null);setAccountOpen(false)}}>خروج از حساب</button>}
       <div className="auth-footnote"><span></span> اطلاعات حساب با اتصال امن ارسال می‌شود</div>
     </section></div>}
     {toast && <div className="toast"><Check size={16}/>{toast}</div>}
