@@ -82,7 +82,7 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
   const passwordHash = await bcrypt.hash(data.password, 12);
   const user = await prisma.user.create({ data: { name: data.name, email, passwordHash } });
   res.cookie('sk_session', signToken(user), { ...tokenOptions, maxAge: 7 * 24 * 60 * 60 * 1000 });
-  res.status(201).json({ user: publicUser(user) });
+  res.status(201).json({ user: publicUser(user), token: signToken(user) });
 }));
 
 app.post('/api/auth/login', asyncRoute(async (req, res) => {
@@ -90,7 +90,7 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
   const user = await prisma.user.findUnique({ where: { email: data.email.toLowerCase() } });
   if (!user || !(await bcrypt.compare(data.password, user.passwordHash))) return res.status(401).json({ error: 'ایمیل یا رمز عبور اشتباه است.' });
   res.cookie('sk_session', signToken(user), { ...tokenOptions, maxAge: 7 * 24 * 60 * 60 * 1000 });
-  res.json({ user: publicUser(user) });
+  res.json({ user: publicUser(user), token: signToken(user) });
 }));
 
 app.post('/api/auth/logout', (req, res) => {
