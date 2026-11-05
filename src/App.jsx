@@ -36,7 +36,7 @@ function HeroLamp() {
   </div>;
 }
 
-function Header({ lang, setLang, theme, setTheme, cartCount, onCart, onAdmin, t }) {
+function Header({ lang, setLang, theme, setTheme, cartCount, onCart, onAdmin, onAccount, user, t }) {
   const [open, setOpen] = useState(false);
   return <header className="site-header">
     <div className="container header-inner">
@@ -49,7 +49,7 @@ function Header({ lang, setLang, theme, setTheme, cartCount, onCart, onAdmin, t 
         <button className="language-btn" onClick={() => setLang(lang === 'fa' ? 'en' : 'fa')}><Globe2 size={16}/>{t.language}</button>
         <button className="icon-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label="toggle theme">{theme === 'dark' ? <Sun/> : <Moon/>}</button>
         <button className="bag-btn" onClick={onCart}><ShoppingBag size={18}/><span>{cartCount}</span></button>
-        <button className="admin-shortcut" onClick={onAdmin}><LayoutDashboard size={15}/><span>{t.admin}</span></button>
+        <button className="admin-shortcut" onClick={onAccount}><span>{user ? user.name : 'ورود / ثبت‌نام'}</span></button><button className="admin-shortcut" onClick={onAdmin}><LayoutDashboard size={15}/><span>{t.admin}</span></button>
       </div>
     </div>
   </header>;
@@ -140,6 +140,13 @@ export default function App() {
   const [cart,setCart] = useState(() => read('sk-cart',[]));
   const [settings,setSettings] = useState(() => read('sk-settings',{brand:'شی‌کاریزما',tagline:'نور، امضای فضا',accent:'#9b78f5'}));
   const [cartOpen,setCartOpen] = useState(false);
+  const [token,setToken] = useState(() => localStorage.getItem('sk-token') || '');
+  const [user,setUser] = useState(() => read('sk-user',null));
+  const [accountOpen,setAccountOpen] = useState(false);
+  const [accountMode,setAccountMode] = useState('login');
+  const [accountForm,setAccountForm] = useState({name:'',email:'',password:''});
+  const [checkoutBusy,setCheckoutBusy] = useState(false);
+  const [orders,setOrders] = useState([]);
   const [adminOpen,setAdminOpen] = useState(false);
   const [search,setSearch] = useState('');
   const [category,setCategory] = useState('همه');
@@ -171,11 +178,17 @@ export default function App() {
     return () => controller.abort();
   }, []);
   useEffect(()=>{localStorage.setItem('sk-products',JSON.stringify(products))},[products]);
+  useEffect(()=>{if(token){localStorage.setItem('sk-token',token);localStorage.setItem('sk-user',JSON.stringify(user));fetch(`${API_BASE}/auth/me`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>r.ok?r.json():Promise.reject()).then(d=>setUser(d.user)).catch(()=>{setToken('');setUser(null);localStorage.removeItem('sk-token');localStorage.removeItem('sk-user')})}else{localStorage.removeItem('sk-token');localStorage.removeItem('sk-user')}},[token]);
+  useEffect(()=>{if(token && user?.role==='ADMIN')fetch(`${API_BASE}/admin/orders`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>r.ok?r.json():Promise.reject()).then(d=>setOrders(d.orders||[])).catch(e=>console.error(e))},[token,user?.role]);
   useEffect(()=>{localStorage.setItem('sk-cart',JSON.stringify(cart))},[cart]);
   useEffect(()=>{localStorage.setItem('sk-settings',JSON.stringify(settings));document.documentElement.style.setProperty('--accent',settings.accent)},[settings]);
+  const submitAccount = async e => { e.preventDefault(); try { const response = await fetch(`${API_BASE}/auth/${accountMode}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(accountMode==='register'?accountForm:{email:accountForm.email,password:accountForm.password})}); const data=await response.json(); if(!response.ok) throw new Error(data.error||'ورود ناموفق بود'); setToken(data.token); setUser(data.user); setAccountOpen(false); setToast('ورود موفق بود'); } catch(error){setToast(error.message)} };
+  const checkout = async () => { if(!cart.length)return; if(!token){setAccountOpen(true);setToast('برای ثبت سفارش ابتدا وارد حساب شوید');return;} const customerName=prompt('نام و نام خانوادگی:'); if(!customerName)return; const phone=prompt('شماره تماس:'); if(!phone)return; const address=prompt('آدرس کامل:'); if(!address)return; setCheckoutBusy(true); try { const response=await fetch(`${API_BASE}/orders`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({customerName,phone,address,items:cart.map(i=>({productId:i.id,quantity:i.qty}))})}); const data=await response.json(); if(!response.ok)throw new Error(data.error||'ثبت سفارش ناموفق بود'); setCart([]);setCartOpen(false);setToast(`سفارش ${data.order.id.slice(-7)} ثبت شد`); }catch(error){setToast(error.message)}finally{setCheckoutBusy(false)} };
+  const saveProduct = async (payload,editing) => { const response=await fetch(editing==='new'?`${API_BASE}/admin/products`:`${API_BASE}/admin/products/${editing}`,{method:editing==='new'?'POST':'PATCH',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify(payload)}); const data=await response.json(); if(!response.ok)throw new Error(data.error||'ذخیره ناموفق بود'); setProducts(list=>editing==='new'?[data.product,...list]:list.map(p=>p.id===editing?data.product:p)); };
+  const deleteProduct = async id => { const response=await fetch(`${API_BASE}/admin/products/${id}`,{method:'DELETE',headers:{Authorization:`Bearer ${token}`}});if(!response.ok)throw new Error('حذف محصول ناموفق بود');setProducts(list=>list.filter(p=>p.id!==id)); };
   const add = p => {setCart(c=>{const found=c.find(x=>x.id===p.id);return found?c.map(x=>x.id===p.id?{...x,qty:x.qty+1}:x):[...c,{...p,qty:1}]});setToast(isFa?'به سبد خرید اضافه شد':'Added to your bag');setTimeout(()=>setToast(''),2200)};
   return <div className="app" dir={isFa?'rtl':'ltr'}>
-    <Header lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} cartCount={cart.reduce((n,x)=>n+x.qty,0)} onCart={()=>setCartOpen(true)} onAdmin={()=>setAdminOpen(true)} t={t}/>
+    <Header lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} cartCount={cart.reduce((n,x)=>n+x.qty,0)} onCart={()=>setCartOpen(true)} onAdmin={()=>{if(user?.role!=='ADMIN'){setAccountOpen(true);return}setAdminOpen(true)}} onAccount={()=>setAccountOpen(true)} user={user} t={t}/>
     <main>
       <section className="hero-section" id="home"><div className="container hero-grid">
         <div className="hero-copy"><div className="eyebrow"><span></span>{t.eyebrow}</div><h1>{t.heroTitle}<br/><em>{t.heroAccent}</em></h1><p>{t.heroText}</p>
@@ -194,8 +207,9 @@ export default function App() {
       <section className="newsletter-section"><div className="container newsletter-inner"><div><span className="eyebrow">A LITTLE MORE LIGHT</span><h2>{t.newsletter}</h2><p>{t.newsletterText}</p></div><form onSubmit={e=>{e.preventDefault();alert(isFa?'عضویت نمایشی انجام شد.':'Demo subscription complete.')}}><input type="email" required placeholder={t.email}/><button className="btn btn-primary">{t.join}<ArrowLeft size={16}/></button></form></div></section>
     </main>
     <footer id="contact"><div className="container footer-grid"><div><Brand light/><p>{t.footer}</p></div><div><b>{isFa?'دسترسی سریع':'Quick links'}</b><a href="#shop">{t.nav[1]}</a><a href="#about">{t.nav[2]}</a><a href="#contact">{t.nav[3]}</a></div><div><b>{isFa?'ارتباط با ما':'Contact'}</b><span><Mail size={15}/> hello@shekarisma.com</span><span><Phone size={15}/> ۰۲۱-۰۰۰۰۰۰۰۰</span><span><MapPin size={15}/> تهران، ایران</span></div><div className="socials"><b>{isFa?'ما را دنبال کنید':'Follow us'}</b><a href="#contact" aria-label="instagram"><Instagram/></a></div></div><div className="container copyright"><span>© 2026 SHEKARISMA. ALL RIGHTS RESERVED.</span><span>{isFa?'ساخته‌شده با توجه به جزئیات':'Made with attention to detail'}</span></div></footer>
-    <CartDrawer open={cartOpen} onClose={()=>setCartOpen(false)} cart={cart} setCart={setCart} lang={lang} t={t}/>
-    {adminOpen && <AdminPanel products={products} setProducts={setProducts} settings={settings} setSettings={setSettings} onClose={()=>setAdminOpen(false)} lang={lang}/>}
+    <CartDrawer open={cartOpen} onClose={()=>setCartOpen(false)} cart={cart} setCart={setCart} lang={lang} t={t} onCheckout={checkout} busy={checkoutBusy}/>
+    {adminOpen && <AdminPanel products={products} setProducts={setProducts} settings={settings} setSettings={setSettings} orders={orders} token={token} onSaveProduct={saveProduct} onDeleteProduct={deleteProduct} onClose={()=>setAdminOpen(false)} lang={lang}/>}
+    {accountOpen && <div className="overlay" onMouseDown={()=>setAccountOpen(false)}><section className="drawer" onMouseDown={e=>e.stopPropagation()}><div className="drawer-head"><h2>{accountMode==='login'?'ورود به حساب':'ساخت حساب کاربری'}</h2><button className="icon-btn" onClick={()=>setAccountOpen(false)}><X/></button></div><form className="product-form" onSubmit={submitAccount}>{accountMode==='register'&&<label>نام<input required value={accountForm.name} onChange={e=>setAccountForm(f=>({...f,name:e.target.value}))}/></label>}<label>ایمیل<input type="email" required value={accountForm.email} onChange={e=>setAccountForm(f=>({...f,email:e.target.value}))}/></label><label>رمز عبور<input type="password" minLength="8" required value={accountForm.password} onChange={e=>setAccountForm(f=>({...f,password:e.target.value}))}/></label><button className="btn btn-primary" type="submit">{accountMode==='login'?'ورود':'ثبت‌نام'}</button><button type="button" className="text-btn" onClick={()=>setAccountMode(m=>m==='login'?'register':'login')}>{accountMode==='login'?'حساب نداری؟ ثبت‌نام':'قبلاً حساب ساختی؟ ورود'}</button>{user&&<button type="button" className="text-btn" onClick={()=>{fetch(`${API_BASE}/auth/logout`,{method:'POST',headers:{Authorization:`Bearer ${token}`}});setToken('');setUser(null);setAccountOpen(false)}}>خروج از حساب</button>}</form></section></div>}
     {toast && <div className="toast"><Check size={16}/>{toast}</div>}
     <button className="floating-admin" onClick={()=>setAdminOpen(true)} title="پنل مدیریت"><Settings2 size={18}/></button>
   </div>;
