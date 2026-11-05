@@ -9,6 +9,7 @@ import {
 import { starterProducts, copy } from './data';
 
 const money = (n, en=false) => new Intl.NumberFormat(en ? 'en-US' : 'fa-IR').format(n) + (en ? ' تومان' : ' تومان');
+const API_BASE = 'https://shekarisma-store.onrender.com/api';
 const read = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } };
 
 function Brand({ light=false }) {
@@ -149,6 +150,26 @@ export default function App() {
   const filtered = useMemo(() => products.filter(p => (category==='همه'||p.category===category) && `${p.name} ${p.en} ${p.category}`.toLowerCase().includes(search.toLowerCase())),[products,category,search]);
   useEffect(()=>{localStorage.setItem('sk-lang',JSON.stringify(lang));document.documentElement.lang=lang;document.documentElement.dir=isFa?'rtl':'ltr'},[lang,isFa]);
   useEffect(()=>{localStorage.setItem('sk-theme',JSON.stringify(theme));document.documentElement.dataset.theme=theme},[theme]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${API_BASE}/products`, { signal: controller.signal, cache: 'no-store' })
+      .then(response => {
+        if (!response.ok) throw new Error('دریافت محصولات از سرور ناموفق بود.');
+        return response.json();
+      })
+      .then(data => {
+        if (!Array.isArray(data.products)) throw new Error('پاسخ محصولات معتبر نیست.');
+        setProducts(data.products.map(product => ({
+          ...product,
+          en: product.nameEn || product.name,
+          oldPrice: product.oldPrice ?? 0
+        })));
+      })
+      .catch(error => {
+        if (error.name !== 'AbortError') console.error('Shekarisma API:', error);
+      });
+    return () => controller.abort();
+  }, []);
   useEffect(()=>{localStorage.setItem('sk-products',JSON.stringify(products))},[products]);
   useEffect(()=>{localStorage.setItem('sk-cart',JSON.stringify(cart))},[cart]);
   useEffect(()=>{localStorage.setItem('sk-settings',JSON.stringify(settings));document.documentElement.style.setProperty('--accent',settings.accent)},[settings]);
