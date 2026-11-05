@@ -36,14 +36,14 @@ function HeroLamp() {
   </div>;
 }
 
-function Header({ lang, setLang, theme, setTheme, cartCount, onCart, onAdmin, onAccount, user, t }) {
+function Header({ lang, setLang, theme, setTheme, cartCount, onCart, onAdmin, onAccount, onRegister, user, t }) {
   const [open, setOpen] = useState(false);
   return <header className="site-header">
     <div className="container header-inner">
       <button className="icon-btn mobile-menu" onClick={() => setOpen(!open)} aria-label="menu"><Menu/></button>
       <Brand/>
       <nav className={open ? 'nav-links nav-open' : 'nav-links'}>
-        {t.nav.map((item, i) => <a key={item} href={['#home','#shop','#about','#contact'][i]} onClick={() => setOpen(false)}>{item}</a>)}
+        {t.nav.map((item, i) => <a key={item} href={['#home','#shop','#about','#contact'][i]} onClick={() => setOpen(false)}>{item}</a>)}<button className="mobile-register-link" type="button" onClick={() => { setOpen(false); onRegister(); }}>ثبت‌نام / ورود به حساب</button>
       </nav>
       <div className="header-actions">
         <button className="language-btn" onClick={() => setLang(lang === 'fa' ? 'en' : 'fa')}><Globe2 size={16}/>{t.language}</button>
@@ -199,7 +199,7 @@ export default function App() {
   const updateOrder = async (id,status) => { const response=await fetch(`${API_BASE}/admin/orders/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({status})});const data=await response.json();if(!response.ok)throw new Error(data.error||'تغییر وضعیت ناموفق بود');setOrders(list=>list.map(o=>o.id===id?data.order:o)); };
   const add = p => {setCart(c=>{const found=c.find(x=>x.id===p.id);return found?c.map(x=>x.id===p.id?{...x,qty:x.qty+1}:x):[...c,{...p,qty:1}]});setToast(isFa?'به سبد خرید اضافه شد':'Added to your bag');setTimeout(()=>setToast(''),2200)};
   return <div className="app" dir={isFa?'rtl':'ltr'}>
-    <Header lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} cartCount={cart.reduce((n,x)=>n+x.qty,0)} onCart={()=>setCartOpen(true)} onAdmin={()=>{if(user?.role!=='ADMIN'){setAccountOpen(true);return}setAdminOpen(true)}} onAccount={()=>setAccountOpen(true)} user={user} t={t}/>
+    <Header lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} cartCount={cart.reduce((n,x)=>n+x.qty,0)} onCart={()=>setCartOpen(true)} onAdmin={()=>{if(user?.role!=='ADMIN'){setAccountOpen(true);return}setAdminOpen(true)}} onAccount={()=>setAccountOpen(true)} onRegister={()=>{setAccountMode('register');setAccountOpen(true)}} user={user} t={t}/>
     <main>
       <section className="hero-section" id="home"><div className="container hero-grid">
         <div className="hero-copy"><div className="eyebrow"><span></span>{t.eyebrow}</div><h1>{t.heroTitle}<br/><em>{t.heroAccent}</em></h1><p>{t.heroText}</p>
