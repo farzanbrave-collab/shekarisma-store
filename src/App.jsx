@@ -152,6 +152,7 @@ export default function App() {
   const [accountForm,setAccountForm] = useState({name:'',email:'',password:''});
   const [checkoutBusy,setCheckoutBusy] = useState(false);
   const [orders,setOrders] = useState([]);
+  const [myOrders,setMyOrders] = useState([]);
   const [adminOpen,setAdminOpen] = useState(false);
   const [search,setSearch] = useState('');
   const [category,setCategory] = useState('همه');
@@ -185,6 +186,7 @@ export default function App() {
   useEffect(()=>{localStorage.setItem('sk-products',JSON.stringify(products))},[products]);
   useEffect(()=>{if(token){localStorage.setItem('sk-token',token);localStorage.setItem('sk-user',JSON.stringify(user));fetch(`${API_BASE}/auth/me`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>r.ok?r.json():Promise.reject()).then(d=>setUser(d.user)).catch(()=>{setToken('');setUser(null);localStorage.removeItem('sk-token');localStorage.removeItem('sk-user')})}else{localStorage.removeItem('sk-token');localStorage.removeItem('sk-user')}},[token]);
   useEffect(()=>{if(token && user?.role==='ADMIN')fetch(`${API_BASE}/admin/orders`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>r.ok?r.json():Promise.reject()).then(d=>setOrders(d.orders||[])).catch(e=>console.error(e))},[token,user?.role]);
+  useEffect(()=>{if(token && user?.role!=='ADMIN')fetch(`${API_BASE}/orders/mine`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>r.ok?r.json():Promise.reject()).then(d=>setMyOrders(d.orders||[])).catch(e=>console.error('Order history:',e));else setMyOrders([])},[token,user?.role]);
   useEffect(()=>{localStorage.setItem('sk-cart',JSON.stringify(cart))},[cart]);
   useEffect(()=>{localStorage.setItem('sk-settings',JSON.stringify(settings));document.documentElement.style.setProperty('--accent',settings.accent)},[settings]);
   const submitAccount = async e => { e.preventDefault(); try { const response = await fetch(`${API_BASE}/auth/${accountMode}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(accountMode==='register'?accountForm:{email:accountForm.email,password:accountForm.password})}); const data=await response.json(); if(!response.ok) throw new Error(data.error||'ورود ناموفق بود'); setToken(data.token); setUser(data.user); setAccountOpen(false); setToast('ورود موفق بود'); } catch(error){setToast(error.message)} };
@@ -230,6 +232,7 @@ export default function App() {
         <button className="btn btn-primary auth-submit" type="submit">{accountMode==='login'?'ورود به حساب':'ساخت حساب کاربری'}<ArrowLeft size={17}/></button>
       </form>
       <p className="auth-switch">{accountMode==='login'?'هنوز حساب نداری؟':'قبلاً ثبت‌نام کردی؟'} <button type="button" onClick={()=>setAccountMode(m=>m==='login'?'register':'login')}>{accountMode==='login'?'ثبت‌نام کن':'وارد شو'}</button></p>
+      {user&&user.role!=='ADMIN'&&<section className="account-orders"><h3>سفارش‌های من</h3>{myOrders.length?myOrders.map(order=><div className="account-order" key={order.id}><span>#{order.id.slice(-7)}</span><b>{money(order.total)}</b><small>{({PENDING:'در انتظار بررسی',CONFIRMED:'تأیید شده',PROCESSING:'در حال آماده‌سازی',SHIPPED:'ارسال شده',DELIVERED:'تحویل شده',CANCELLED:'لغو شده'})[order.status]||order.status}</small></div>):<p>هنوز سفارشی ثبت نکرده‌اید.</p>}</section>}
       {user&&<button className="auth-logout" type="button" onClick={()=>{fetch(`${API_BASE}/auth/logout`,{method:'POST',headers:{Authorization:`Bearer ${token}`}});setToken('');setUser(null);setAccountOpen(false)}}>خروج از حساب</button>}
       <div className="auth-footnote"><span></span> اطلاعات حساب با اتصال امن ارسال می‌شود</div>
     </section></div>}
